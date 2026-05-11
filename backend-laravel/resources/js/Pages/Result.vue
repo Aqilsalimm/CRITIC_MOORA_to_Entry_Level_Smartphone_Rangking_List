@@ -7,6 +7,8 @@ import {
     CategoryScale, LinearScale, PointElement, LineElement,
     RadialLinearScale, Filler // Tambahkan RadialLinearScale & Filler untuk Radar
 } from 'chart.js';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 ChartJS.register(
     Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, 
@@ -214,6 +216,41 @@ const formatResolution = (val) => {
     if (val === 2) return 'FHD';
     return 'HD+';
 };
+
+const isExporting = ref(false);
+
+const downloadPDF = async () => {
+    isExporting.value = true;
+    const element = document.getElementById('report-content');
+    
+    try {
+        const canvas = await html2canvas(element, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+
+        const imgProps = pdf.getImageProperties(imgData);
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save(`Laporan-Rekomendasi-${new Date().getTime()}.pdf`);
+        
+    } catch (error) {
+        console.error("Gagal mengexport PDF:", error);
+        alert("Terjadi kesalahan saat membuat PDF");
+    } finally {
+        isExporting.value = false;
+    }
+};
 </script>
 
 <template>
@@ -226,7 +263,7 @@ const formatResolution = (val) => {
             <p class="text-gray-500">Menggunakan metode CRITIC-MOORA Decision Support System</p>
         </header>
 
-        <main class="max-w-6xl mx-auto px-4">
+        <main class="max-w-6xl mx-auto px-4 mt-8">
             
             <!-- Tabs Navigation -->
             <div class="bg-gray-100/50 p-1 rounded-xl flex mb-8 overflow-x-auto">
@@ -242,98 +279,229 @@ const formatResolution = (val) => {
                 </button>
             </div>
 
-            <!-- TAB CONTEN: REKOMENDASI -->
-            <div v-show="activeTab === 'Rekomendasi'" class="space-y-6">
-                
-                <!-- Chart Section -->
-                <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-                    <h2 class="text-lg font-bold text-gray-800 mb-6">Top 10 Rekomendasi - Grafik Skor</h2>
-                    <div class="h-72">
-                        <Bar :data="chartData" :options="chartOptions" />
-                    </div>
-                </section>
-
-                <!-- Cards List Section -->
-                <section class="space-y-4">
-                    <div 
-                        v-for="(hp, index) in recommendations" :key="hp.Nama_HP"
-                        class="bg-white p-5 rounded-2xl shadow-sm border border-indigo-200 flex flex-col md:flex-row gap-6 transition-hover hover:shadow-md"
-                    >
-                        <!-- Left: Rank & Compare -->
-                        <div class="flex flex-col items-center justify-center min-w-[80px] border-b md:border-b-0 md:border-r border-gray-100 pb-4 md:pb-0 md:pr-4">
-                            <!-- Trophy Icon Color based on rank -->
-                            <svg :class="['w-8 h-8 mb-1', index === 0 ? 'text-yellow-400' : (index === 1 ? 'text-gray-400' : (index === 2 ? 'text-amber-600' : 'text-indigo-300'))]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                            <span class="text-sm text-gray-500 font-semibold mb-3">Rank {{ index + 1 }}</span>
-                            
-                            <label class="flex flex-col items-center cursor-pointer">
-                                <input type="checkbox" :value="hp.Nama_HP" @change="toggleCompare(hp.Nama_HP)" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-                                <span class="text-xs text-gray-400 mt-1">Compare</span>
-                            </label>
-                        </div>
-
-                        <!-- Right: HP Details -->
-                        <div class="flex-1">
-                            <div class="flex flex-wrap items-center gap-3 mb-1">
-                                <div class="bg-indigo-600 p-2 rounded-lg text-white">📱</div>
-                                <h3 class="text-xl font-bold text-gray-900">{{ hp.Nama_HP }}</h3>
-                                <span class="px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">{{ hp.Brand }}</span>
-                            </div>
-                            <p class="text-sm text-gray-500 mb-4">MOORA Score: <span class="font-bold text-gray-700">{{ hp.Nilai_Optimasi_Yi.toFixed(4) }}</span></p>
-
-                            <!-- Spesifikasi Grid (C1 - C9) -->
-                            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-y-4 gap-x-2 text-sm">
-                                
-                                <div>
-                                    <p class="text-green-600 flex items-center gap-1 font-semibold text-xs"><span class="text-base">$</span> Harga (C1)</p>
-                                    <p class="font-bold text-gray-900 mt-0.5">Rp {{ hp.C1.toLocaleString('id-ID') }}</p>
-                                </div>
-
-                                <div>
-                                    <p class="text-purple-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">📸</span> Kamera (C5)</p>
-                                    <p class="font-bold text-gray-900 mt-0.5">{{ hp.C5 }} MP</p>
-                                </div>
-
-                                <div>
-                                    <p class="text-blue-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">💾</span> RAM (C2)</p>
-                                    <p class="font-bold text-gray-900 mt-0.5">{{ hp.C2 }} GB</p>
-                                </div>
-
-                                <div>
-                                    <p class="text-orange-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">🗂️</span> Storage (C3)</p>
-                                    <p class="font-bold text-gray-900 mt-0.5">{{ hp.C3 }} GB</p>
-                                </div>
-
-                                <div>
-                                    <p class="text-red-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">🚀</span> AnTuTu (C4)</p>
-                                    <p class="font-bold text-gray-900 mt-0.5">{{ hp.C4.toLocaleString('id-ID') }}</p>
-                                </div>
-
-                                <div>
-                                    <p class="text-emerald-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">🔋</span> Baterai (C6)</p>
-                                    <p class="font-bold text-gray-900 mt-0.5">{{ hp.C6 }} mAh</p>
-                                </div>
-
-                                <div>
-                                    <p class="text-indigo-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">⚡</span> Tipe ROM (C7)</p>
-                                    <p class="font-bold text-gray-900 mt-0.5">{{ formatStorageType(hp.C7) }}</p>
-                                </div>
-
-                                <div>
-                                    <p class="text-cyan-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">📱</span> Panel Layar (C8)</p>
-                                    <p class="font-bold text-gray-900 mt-0.5">{{ formatLcdType(hp.C8) }}</p>
-                                </div>
-
-                                <div>
-                                    <p class="text-pink-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">📺</span> Resolusi (C9)</p>
-                                    <p class="font-bold text-gray-900 mt-0.5">{{ formatResolution(hp.C9) }}</p>
-                                </div>
-
-                            </div>
-                        </div>
-                    </div>
-                </section>
+            <div class="flex justify-end mb-4">
+                <button 
+                    @click="downloadPDF"
+                    :disabled="isExporting"
+                    class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl shadow-md transition-all font-bold text-sm"
+                >
+                    <svg v-if="!isExporting" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    <span v-else class="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
+                    {{ isExporting ? 'Memproses PDF...' : 'Download Laporan (PDF)' }}
+                </button>
             </div>
 
+            <!-- REPORT CONTENT WRAPPER -->
+            <div id="report-content" class="bg-white p-8 rounded-2xl border border-gray-100 mb-8">
+                
+                <div class="border-b-2 border-indigo-600 pb-6 mb-8 text-center">
+                    <h1 class="text-2xl font-bold text-gray-900 uppercase">Laporan Hasil Rekomendasi Smartphone</h1>
+                    <p class="text-gray-500 text-sm italic">Metode CRITIC-MOORA Decision Support System</p>
+                    <p class="text-xs text-gray-400 mt-2">Dicetak pada: {{ new Date().toLocaleString('id-ID') }}</p>
+                </div>
+
+                <div class="space-y-10">
+                    
+                    <!-- TAB CONTENT: REKOMENDASI -->
+                    <div v-if="activeTab === 'Rekomendasi' || isExporting" class="space-y-6">
+                        
+                        <!-- Chart Section -->
+                        <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                            <h2 class="text-lg font-bold text-gray-800 mb-6">Top 10 Rekomendasi - Grafik Skor</h2>
+                            <div class="h-64">
+                                <Bar :data="chartData" :options="chartOptions" />
+                            </div>
+                        </section>
+
+                        <!-- List Section -->
+                        <section class="space-y-4">
+                            <h2 class="text-lg font-bold text-gray-800 mb-4">Daftar Peringkat Smartphone</h2>
+                            
+                            <!-- Card Item -->
+                            <div v-for="(hp, index) in recommendations" :key="hp.Nama_HP" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow relative overflow-hidden">
+                                <!-- Rank Badge -->
+                                <div class="absolute top-0 left-0 w-12 h-12 bg-indigo-600 text-white flex items-center justify-center font-bold text-lg rounded-br-2xl">
+                                    #{{ hp.Peringkat }}
+                                </div>
+
+                                <div class="ml-14">
+                                    <!-- Header HP -->
+                                    <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-2">
+                                        <div>
+                                            <div class="flex items-center gap-2">
+                                                <h3 class="text-xl font-bold text-gray-900">{{ hp.Nama_HP }}</h3>
+                                                <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2.5 py-1 rounded-full">{{ hp.Brand }}</span>
+                                            </div>
+                                            <p class="text-indigo-600 font-bold text-lg mt-1">Rp {{ hp.C1.toLocaleString('id-ID') }}</p>
+                                        </div>
+                                        
+                                        <!-- Skor & Compare -->
+                                        <div class="flex flex-col items-end gap-2">
+                                            <div class="text-right">
+                                                <p class="text-xs text-gray-500 font-medium">Skor MOORA</p>
+                                                <p class="text-2xl font-bold text-indigo-600">{{ hp.Nilai_Optimasi_Yi.toFixed(4) }}</p>
+                                            </div>
+                                            
+                                            <!-- Checkbox Compare -->
+                                            <label class="flex items-center gap-2 cursor-pointer">
+                                                <input 
+                                                    type="checkbox" 
+                                                    :checked="selectedToCompare.includes(hp.Nama_HP)"
+                                                    @change="toggleCompare(hp.Nama_HP)"
+                                                    class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                                >
+                                                <span class="text-sm font-medium text-gray-600">Compare</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Grid Spesifikasi -->
+                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 border-t border-gray-100 pt-4">
+                                        <div>
+                                            <p class="text-blue-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">📸</span> Kamera (C5)</p>
+                                            <p class="font-bold text-gray-900 mt-0.5">{{ hp.C5 }} MP</p>
+                                        </div>
+
+                                        <div>
+                                            <p class="text-violet-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">📟</span> RAM (C2)</p>
+                                            <p class="font-bold text-gray-900 mt-0.5">{{ hp.C2 }} GB</p>
+                                        </div>
+
+                                        <div>
+                                            <p class="text-orange-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">🗂️</span> Storage (C3)</p>
+                                            <p class="font-bold text-gray-900 mt-0.5">{{ hp.C3 }} GB</p>
+                                        </div>
+
+                                        <div>
+                                            <p class="text-red-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">🚀</span> AnTuTu (C4)</p>
+                                            <p class="font-bold text-gray-900 mt-0.5">{{ hp.C4.toLocaleString('id-ID') }}</p>
+                                        </div>
+
+                                        <div>
+                                            <p class="text-emerald-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">🔋</span> Baterai (C6)</p>
+                                            <p class="font-bold text-gray-900 mt-0.5">{{ hp.C6 }} mAh</p>
+                                        </div>
+
+                                        <div>
+                                            <p class="text-indigo-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">⚡</span> Tipe ROM (C7)</p>
+                                            <p class="font-bold text-gray-900 mt-0.5">{{ formatStorageType(hp.C7) }}</p>
+                                        </div>
+
+                                        <div>
+                                            <p class="text-cyan-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">📱</span> Panel Layar (C8)</p>
+                                            <p class="font-bold text-gray-900 mt-0.5">{{ formatLcdType(hp.C8) }}</p>
+                                        </div>
+
+                                        <div>
+                                            <p class="text-pink-500 flex items-center gap-1 font-semibold text-xs"><span class="text-base">📺</span> Resolusi (C9)</p>
+                                            <p class="font-bold text-gray-900 mt-0.5">{{ formatResolution(hp.C9) }}</p>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- TAB CONTENT: PERBANDINGAN -->
+                    <div v-if="activeTab === 'Perbandingan' || isExporting" class="space-y-6">
+                        <section class="bg-white p-6 md:p-10 rounded-2xl shadow-sm border border-gray-200">
+                            <h2 class="text-xl font-bold text-gray-800 mb-1">Perbandingan Smartphone (Pilih maksimal 3)</h2>
+                            <p class="text-sm text-gray-500 mb-10">{{ selectedToCompare.length }} smartphone dipilih untuk perbandingan</p>
+
+                            <div v-if="selectedToCompare.length === 0" class="flex flex-col items-center justify-center py-16 text-gray-400">
+                                <svg class="w-16 h-16 mb-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                                <p class="font-medium text-gray-500">Belum ada smartphone yang dipilih.</p>
+                                <p class="text-sm">Silakan centang opsi "Compare" pada Tab Rekomendasi.</p>
+                            </div>
+
+                            <div v-else>
+                                
+                                <div class="h-[400px] mb-12">
+                                    <Radar :data="radarChartData" :options="radarChartOptions" />
+                                </div>
+
+                                <div class="overflow-x-auto rounded-xl border border-gray-200">
+                                    <table class="w-full text-sm text-left text-gray-600">
+                                        <thead class="text-xs text-gray-800 bg-gray-50 uppercase font-bold">
+                                            <tr>
+                                                <th scope="col" class="px-6 py-4 border-b border-r border-gray-200 w-1/4">Spesifikasi</th>
+                                                <th v-for="hp in comparedPhones" :key="'head-'+hp.Nama_HP" scope="col" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.Nama_HP }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="bg-white">
+                                                <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Rank</td>
+                                                <td v-for="hp in comparedPhones" :key="'rank-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">#{{ hp.Peringkat }}</td>
+                                            </tr>
+                                            <tr class="bg-gray-50">
+                                                <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">MOORA Score</td>
+                                                <td v-for="hp in comparedPhones" :key="'score-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center text-indigo-600 font-bold">{{ hp.Nilai_Optimasi_Yi.toFixed(4) }}</td>
+                                            </tr>
+                                            <tr class="bg-white">
+                                                <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Harga (C1)</td>
+                                                <td v-for="hp in comparedPhones" :key="'c1-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">Rp {{ hp.C1.toLocaleString('id-ID') }}</td>
+                                            </tr>
+                                            <tr class="bg-gray-50">
+                                                <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Kamera (C5)</td>
+                                                <td v-for="hp in comparedPhones" :key="'c5-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C5 }} MP</td>
+                                            </tr>
+                                            <tr class="bg-white">
+                                                <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">RAM (C2)</td>
+                                                <td v-for="hp in comparedPhones" :key="'c2-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C2 }} GB</td>
+                                            </tr>
+                                            <tr class="bg-gray-50">
+                                                <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Storage (C3)</td>
+                                                <td v-for="hp in comparedPhones" :key="'c3-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C3 }} GB</td>
+                                            </tr>
+                                            <tr class="bg-white">
+                                                <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Chipset / AnTuTu (C4)</td>
+                                                <td v-for="hp in comparedPhones" :key="'c4-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C4.toLocaleString('id-ID') }}</td>
+                                            </tr>
+                                            <tr class="bg-gray-50">
+                                                <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Baterai (C6)</td>
+                                                <td v-for="hp in comparedPhones" :key="'c6-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C6 }} mAh</td>
+                                            </tr>
+                                            <tr class="bg-white">
+                                                <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Tipe Storage (C7)</td>
+                                                <td v-for="hp in comparedPhones" :key="'c7-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ formatStorageType(hp.C7) }}</td>
+                                            </tr>
+                                            <tr class="bg-gray-50">
+                                                <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Display Panel (C8)</td>
+                                                <td v-for="hp in comparedPhones" :key="'c8-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ formatLcdType(hp.C8) }}</td>
+                                            </tr>
+                                            <tr class="bg-white">
+                                                <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Resolusi (C9)</td>
+                                                <td v-for="hp in comparedPhones" :key="'c9-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ formatResolution(hp.C9) }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                            </div>
+                        </section>
+                        
+                    </div>
+                </div>
+
+                <div class="mt-12 pt-6 border-t border-gray-100 text-center">
+                    <p class="text-xs text-gray-400">Hasil ini bersifat rekomendasi berdasarkan algoritma DSS objektif.</p>
+                </div>
+            </div>
+
+            <!-- Cari Rekomendasi Baru Button (Move outside report if needed or keep it) -->
+            <div class="flex justify-center mt-8 mb-8">
+                <button 
+                    @click="goBack"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-colors flex items-center gap-2"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    Cari Rekomendasi Baru
+                </button>
+            </div>
+
+            <!-- OTHER TABS (OUTSIDE REPORT) -->
+            
             <!-- TAB CONTENT: ANALISIS -->
             <div v-show="activeTab === 'Analisis'" class="space-y-6">
                 
@@ -345,7 +513,7 @@ const formatResolution = (val) => {
                     </div>
                 </section>
 
-                <!-- Distribusi Skor Card -->
+                <!-- Distribusi Skor MOORA -->
                 <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                     <h2 class="text-lg font-bold text-gray-800 mb-6">Distribusi Skor MOORA</h2>
                     <div class="h-72">
@@ -392,14 +560,6 @@ const formatResolution = (val) => {
                             </div>
                         </div>
                     </section>
-                </div>
-
-                <!-- Cari Rekomendasi Baru Button -->
-                <div class="flex justify-center mt-6">
-                    <Link href="/" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                        Cari Rekomendasi Baru
-                    </Link>
                 </div>
             </div>
 
@@ -471,94 +631,6 @@ const formatResolution = (val) => {
                     <pre class="bg-gray-50 p-4 rounded-xl text-sm text-gray-700 font-mono overflow-x-auto border border-gray-100">{{ JSON.stringify(calculationData?.step_6, null, 4) }}</pre>
                 </section>
                 
-            </div>
-
-            <div v-show="activeTab === 'Perbandingan'" class="space-y-6">
-                <section class="bg-white p-6 md:p-10 rounded-2xl shadow-sm border border-gray-200">
-                    <h2 class="text-xl font-bold text-gray-800 mb-1">Perbandingan Smartphone (Pilih maksimal 3)</h2>
-                    <p class="text-sm text-gray-500 mb-10">{{ selectedToCompare.length }} smartphone dipilih untuk perbandingan</p>
-
-                    <div v-if="selectedToCompare.length === 0" class="flex flex-col items-center justify-center py-16 text-gray-400">
-                        <svg class="w-16 h-16 mb-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                        <p class="font-medium text-gray-500">Belum ada smartphone yang dipilih.</p>
-                        <p class="text-sm">Silakan centang opsi "Compare" pada Tab Rekomendasi.</p>
-                    </div>
-
-                    <div v-else>
-                        
-                        <div class="h-[400px] mb-12">
-                            <Radar :data="radarChartData" :options="radarChartOptions" />
-                        </div>
-
-                        <div class="overflow-x-auto rounded-xl border border-gray-200">
-                            <table class="w-full text-sm text-left text-gray-600">
-                                <thead class="text-xs text-gray-800 bg-gray-50 uppercase font-bold">
-                                    <tr>
-                                        <th scope="col" class="px-6 py-4 border-b border-r border-gray-200 w-1/4">Spesifikasi</th>
-                                        <th v-for="hp in comparedPhones" :key="'head-'+hp.Nama_HP" scope="col" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.Nama_HP }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr class="bg-white">
-                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Rank</td>
-                                        <td v-for="hp in comparedPhones" :key="'rank-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">#{{ hp.Peringkat }}</td>
-                                    </tr>
-                                    <tr class="bg-gray-50">
-                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">MOORA Score</td>
-                                        <td v-for="hp in comparedPhones" :key="'score-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center text-indigo-600 font-bold">{{ hp.Nilai_Optimasi_Yi.toFixed(4) }}</td>
-                                    </tr>
-                                    <tr class="bg-white">
-                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Harga (C1)</td>
-                                        <td v-for="hp in comparedPhones" :key="'c1-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">Rp {{ hp.C1.toLocaleString('id-ID') }}</td>
-                                    </tr>
-                                    <tr class="bg-gray-50">
-                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Kamera (C5)</td>
-                                        <td v-for="hp in comparedPhones" :key="'c5-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C5 }} MP</td>
-                                    </tr>
-                                    <tr class="bg-white">
-                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">RAM (C2)</td>
-                                        <td v-for="hp in comparedPhones" :key="'c2-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C2 }} GB</td>
-                                    </tr>
-                                    <tr class="bg-gray-50">
-                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Storage (C3)</td>
-                                        <td v-for="hp in comparedPhones" :key="'c3-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C3 }} GB</td>
-                                    </tr>
-                                    <tr class="bg-white">
-                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Chipset / AnTuTu (C4)</td>
-                                        <td v-for="hp in comparedPhones" :key="'c4-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C4.toLocaleString('id-ID') }}</td>
-                                    </tr>
-                                    <tr class="bg-gray-50">
-                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Baterai (C6)</td>
-                                        <td v-for="hp in comparedPhones" :key="'c6-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C6 }} mAh</td>
-                                    </tr>
-                                    <tr class="bg-white">
-                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Tipe Storage (C7)</td>
-                                        <td v-for="hp in comparedPhones" :key="'c7-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ formatStorageType(hp.C7) }}</td>
-                                    </tr>
-                                    <tr class="bg-gray-50">
-                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Display Panel (C8)</td>
-                                        <td v-for="hp in comparedPhones" :key="'c8-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ formatLcdType(hp.C8) }}</td>
-                                    </tr>
-                                    <tr class="bg-white">
-                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Resolusi (C9)</td>
-                                        <td v-for="hp in comparedPhones" :key="'c9-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ formatResolution(hp.C9) }}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                    </div>
-                </section>
-                
-                <div class="flex justify-center mt-8">
-                    <button 
-                        @click="goBack"
-                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-colors flex items-center gap-2"
-                    >
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                        Cari Rekomendasi Baru
-                    </button>
-                </div>
             </div>
 
         </main>
