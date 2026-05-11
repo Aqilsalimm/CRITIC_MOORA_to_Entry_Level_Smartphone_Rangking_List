@@ -23,7 +23,7 @@ class RecommendationController extends Controller
             'min_price' => 'required|numeric',
             'max_price' => 'required|numeric',
             'selected_brands' => 'array',
-            'selected_criteria' => 'required|array|max:3', // Memastikan max 3 dari backend
+            'selected_criteria' => 'required|array', 
         ]);
 
         try {
@@ -62,7 +62,8 @@ class RecommendationController extends Controller
         
         return Inertia::render('Result', [
             'recommendations' => array_values($recommendations['recommendations'] ?? []),
-            'analysis' => $recommendations['analysis'] ?? null
+            'analysis' => $recommendations['analysis'] ?? null,
+            'calculationData' => $recommendations['calculation'] ?? null
         ]);
     }
 }

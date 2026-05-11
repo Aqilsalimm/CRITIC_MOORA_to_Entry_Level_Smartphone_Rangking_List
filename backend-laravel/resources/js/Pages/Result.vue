@@ -1,10 +1,17 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { Head, Link } from '@inertiajs/vue3';
-import { Bar, Line } from 'vue-chartjs';
-import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, PointElement, LineElement } from 'chart.js';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { Bar, Line, Radar } from 'vue-chartjs'; // Tambahkan Radar
+import { 
+    Chart as ChartJS, Title, Tooltip, Legend, BarElement, 
+    CategoryScale, LinearScale, PointElement, LineElement,
+    RadialLinearScale, Filler // Tambahkan RadialLinearScale & Filler untuk Radar
+} from 'chart.js';
 
-ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, PointElement, LineElement);
+ChartJS.register(
+    Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, 
+    PointElement, LineElement, RadialLinearScale, Filler
+);
 
 const props = defineProps({
     recommendations: {
@@ -12,6 +19,10 @@ const props = defineProps({
         required: true
     },
     analysis: {
+        type: Object,
+        default: () => ({})
+    },
+    calculationData: {
         type: Object,
         default: () => ({})
     }
@@ -98,6 +109,77 @@ const toggleCompare = (id) => {
         if (selectedToCompare.value.length < 3) selectedToCompare.value.push(id);
         else alert('Maksimal membandingkan 3 Smartphone!');
     }
+};
+
+// ==========================================
+// LOGIKA TAB PERBANDINGAN
+// ==========================================
+
+// 1. Mengambil data utuh dari HP yang dicentang
+const comparedPhones = computed(() => {
+    return props.recommendations.filter(hp => selectedToCompare.value.includes(hp.Nama_HP));
+});
+
+// 2. Data untuk Radar Chart (Visualisasi)
+const radarChartData = computed(() => {
+    const phones = comparedPhones.value;
+    if (phones.length === 0) return { labels: [], datasets: [] };
+
+    // Label radar chart
+    const labels = ['Harga (Murah)', 'RAM', 'Storage', 'AnTuTu', 'Kamera', 'Baterai'];
+    
+    // Palet warna sesuai gambar (Indigo, Merah, Hijau)
+    const colors = [
+        { border: '#4f46e5', bg: 'rgba(79, 70, 229, 0.2)' }, // Galaxy S24
+        { border: '#ef4444', bg: 'rgba(239, 68, 68, 0.2)' }, // Redmi
+        { border: '#10b981', bg: 'rgba(16, 185, 129, 0.2)' }  // ROG
+    ];
+
+    // Mencari nilai Maksimal/Minimal dari top 10 untuk skala 0-100% di Radar Chart
+    const minC1 = Math.min(...props.recommendations.map(hp => hp.C1));
+    const maxC2 = Math.max(...props.recommendations.map(hp => hp.C2));
+    const maxC3 = Math.max(...props.recommendations.map(hp => hp.C3));
+    const maxC4 = Math.max(...props.recommendations.map(hp => hp.C4));
+    const maxC5 = Math.max(...props.recommendations.map(hp => hp.C5));
+    const maxC6 = Math.max(...props.recommendations.map(hp => hp.C6));
+
+    const datasets = phones.map((hp, index) => {
+        const cColor = colors[index % colors.length];
+        return {
+            label: hp.Nama_HP,
+            backgroundColor: cColor.bg,
+            borderColor: cColor.border,
+            pointBackgroundColor: cColor.border,
+            fill: true,
+            data: [
+                (minC1 / hp.C1) * 100, // C1 (Cost): Semakin murah = Semakin tinggi nilainya (dibalik)
+                (hp.C2 / maxC2) * 100, // C2 (Benefit): Nilai mentah / Max * 100
+                (hp.C3 / maxC3) * 100,
+                (hp.C4 / maxC4) * 100,
+                (hp.C5 / maxC5) * 100,
+                (hp.C6 / maxC6) * 100
+            ]
+        };
+    });
+
+    return { labels, datasets };
+});
+
+const radarChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom' } },
+    scales: {
+        r: {
+            beginAtZero: true,
+            max: 100,
+            ticks: { display: false } // Menyembunyikan angka 0-100 agar mirip desain asli
+        }
+    }
+};
+
+const goBack = () => {
+    router.get('/');
 };
 
 // Konfigurasi Chart.js mengambil data MOORA Score
@@ -321,9 +403,162 @@ const formatResolution = (val) => {
                 </div>
             </div>
 
-            <!-- Tab Perhitungan, Perbandingan akan diisi pada iterasi berikutnya -->
-            <div v-show="activeTab !== 'Rekomendasi' && activeTab !== 'Analisis'" class="bg-white p-12 text-center rounded-2xl shadow-sm border border-gray-200">
-                <p class="text-gray-500">Konten untuk tab {{ activeTab }} sedang dalam pengembangan.</p>
+            <!-- TAB CONTENT: PERHITUNGAN -->
+            <div v-show="activeTab === 'Perhitungan'" class="space-y-6">
+                
+                <div class="bg-blue-50 border border-blue-200 p-5 rounded-xl text-sm">
+                    <div class="flex items-start gap-3">
+                        <svg class="w-5 h-5 text-blue-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <div>
+                            <h4 class="font-bold text-blue-900 mb-2">Tentang Metode CRITIC-MOORA</h4>
+                            <p class="text-blue-800 mb-1"><b>CRITIC (CRiteria Importance Through Intercriteria Correlation):</b> Metode objektif untuk menghitung bobot kriteria berdasarkan standar deviasi dan korelasi antar kriteria.</p>
+                            <p class="text-blue-800"><b>MOORA (Multi-Objective Optimization on the basis of Ratio Analysis):</b> Metode multi-kriteria untuk ranking alternatif berdasarkan benefit dan cost criteria.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">1</div>
+                        <h3 class="text-lg font-bold text-gray-800">Filter Data</h3>
+                    </div>
+                    <p class="text-gray-500 text-sm mb-4 ml-11">Memfilter smartphone berdasarkan rentang harga dan brand yang dipilih.</p>
+                    <pre class="bg-gray-50 p-4 rounded-xl text-sm text-gray-700 font-mono overflow-x-auto border border-gray-100">{{ JSON.stringify(calculationData?.step_1, null, 4) }}</pre>
+                </section>
+
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">2</div>
+                        <h3 class="text-lg font-bold text-gray-800">Matriks Keputusan</h3>
+                    </div>
+                    <p class="text-gray-500 text-sm mb-4 ml-11">Membuat matriks keputusan awal dengan kriteria C1 - C9 (Mentah).</p>
+                    <pre class="bg-gray-50 p-4 rounded-xl text-sm text-gray-700 font-mono overflow-x-auto border border-gray-100">{{ JSON.stringify(calculationData?.step_2, null, 4) }}</pre>
+                </section>
+
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">3</div>
+                        <h3 class="text-lg font-bold text-gray-800">Normalisasi Matriks</h3>
+                    </div>
+                    <p class="text-gray-500 text-sm mb-4 ml-11">Normalisasi menggunakan metode Vector Normalization.</p>
+                    <pre class="bg-gray-50 p-4 rounded-xl text-sm text-gray-700 font-mono overflow-x-auto border border-gray-100">{{ JSON.stringify(calculationData?.step_3, null, 4) }}</pre>
+                </section>
+
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">4</div>
+                        <h3 class="text-lg font-bold text-gray-800">Perhitungan Bobot CRITIC</h3>
+                    </div>
+                    <p class="text-gray-500 text-sm mb-4 ml-11">Menghitung bobot kriteria menggunakan metode CRITIC (standard deviation × conflict measure).</p>
+                    <pre class="bg-gray-50 p-4 rounded-xl text-sm text-gray-700 font-mono overflow-x-auto border border-gray-100">{{ JSON.stringify(calculationData?.step_4, null, 4) }}</pre>
+                </section>
+
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">5</div>
+                        <h3 class="text-lg font-bold text-gray-800">Perhitungan MOORA</h3>
+                    </div>
+                    <p class="text-gray-500 text-sm mb-4 ml-11">Menghitung skor optimasi MOORA (Yi) berdasarkan Benefit dan Cost kriteria.</p>
+                    <pre class="bg-gray-50 p-4 rounded-xl text-sm text-gray-700 font-mono overflow-x-auto border border-gray-100">{{ JSON.stringify(calculationData?.step_5, null, 4) }}</pre>
+                </section>
+
+                <section class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-sm">6</div>
+                        <h3 class="text-lg font-bold text-gray-800">Ranking Final</h3>
+                    </div>
+                    <p class="text-gray-500 text-sm mb-4 ml-11">Mengurutkan smartphone berdasarkan skor MOORA (tertinggi ke terendah).</p>
+                    <pre class="bg-gray-50 p-4 rounded-xl text-sm text-gray-700 font-mono overflow-x-auto border border-gray-100">{{ JSON.stringify(calculationData?.step_6, null, 4) }}</pre>
+                </section>
+                
+            </div>
+
+            <div v-show="activeTab === 'Perbandingan'" class="space-y-6">
+                <section class="bg-white p-6 md:p-10 rounded-2xl shadow-sm border border-gray-200">
+                    <h2 class="text-xl font-bold text-gray-800 mb-1">Perbandingan Smartphone (Pilih maksimal 3)</h2>
+                    <p class="text-sm text-gray-500 mb-10">{{ selectedToCompare.length }} smartphone dipilih untuk perbandingan</p>
+
+                    <div v-if="selectedToCompare.length === 0" class="flex flex-col items-center justify-center py-16 text-gray-400">
+                        <svg class="w-16 h-16 mb-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        <p class="font-medium text-gray-500">Belum ada smartphone yang dipilih.</p>
+                        <p class="text-sm">Silakan centang opsi "Compare" pada Tab Rekomendasi.</p>
+                    </div>
+
+                    <div v-else>
+                        
+                        <div class="h-[400px] mb-12">
+                            <Radar :data="radarChartData" :options="radarChartOptions" />
+                        </div>
+
+                        <div class="overflow-x-auto rounded-xl border border-gray-200">
+                            <table class="w-full text-sm text-left text-gray-600">
+                                <thead class="text-xs text-gray-800 bg-gray-50 uppercase font-bold">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-4 border-b border-r border-gray-200 w-1/4">Spesifikasi</th>
+                                        <th v-for="hp in comparedPhones" :key="'head-'+hp.Nama_HP" scope="col" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.Nama_HP }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="bg-white">
+                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Rank</td>
+                                        <td v-for="hp in comparedPhones" :key="'rank-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">#{{ hp.Peringkat }}</td>
+                                    </tr>
+                                    <tr class="bg-gray-50">
+                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">MOORA Score</td>
+                                        <td v-for="hp in comparedPhones" :key="'score-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center text-indigo-600 font-bold">{{ hp.Nilai_Optimasi_Yi.toFixed(4) }}</td>
+                                    </tr>
+                                    <tr class="bg-white">
+                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Harga (C1)</td>
+                                        <td v-for="hp in comparedPhones" :key="'c1-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">Rp {{ hp.C1.toLocaleString('id-ID') }}</td>
+                                    </tr>
+                                    <tr class="bg-gray-50">
+                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Kamera (C5)</td>
+                                        <td v-for="hp in comparedPhones" :key="'c5-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C5 }} MP</td>
+                                    </tr>
+                                    <tr class="bg-white">
+                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">RAM (C2)</td>
+                                        <td v-for="hp in comparedPhones" :key="'c2-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C2 }} GB</td>
+                                    </tr>
+                                    <tr class="bg-gray-50">
+                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Storage (C3)</td>
+                                        <td v-for="hp in comparedPhones" :key="'c3-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C3 }} GB</td>
+                                    </tr>
+                                    <tr class="bg-white">
+                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Chipset / AnTuTu (C4)</td>
+                                        <td v-for="hp in comparedPhones" :key="'c4-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C4.toLocaleString('id-ID') }}</td>
+                                    </tr>
+                                    <tr class="bg-gray-50">
+                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Baterai (C6)</td>
+                                        <td v-for="hp in comparedPhones" :key="'c6-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ hp.C6 }} mAh</td>
+                                    </tr>
+                                    <tr class="bg-white">
+                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Tipe Storage (C7)</td>
+                                        <td v-for="hp in comparedPhones" :key="'c7-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ formatStorageType(hp.C7) }}</td>
+                                    </tr>
+                                    <tr class="bg-gray-50">
+                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Display Panel (C8)</td>
+                                        <td v-for="hp in comparedPhones" :key="'c8-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ formatLcdType(hp.C8) }}</td>
+                                    </tr>
+                                    <tr class="bg-white">
+                                        <td class="px-6 py-4 border-b border-r border-gray-200 font-bold text-gray-900">Resolusi (C9)</td>
+                                        <td v-for="hp in comparedPhones" :key="'c9-'+hp.Nama_HP" class="px-6 py-4 border-b border-gray-200 text-center">{{ formatResolution(hp.C9) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                    </div>
+                </section>
+                
+                <div class="flex justify-center mt-8">
+                    <button 
+                        @click="goBack"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-colors flex items-center gap-2"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        Cari Rekomendasi Baru
+                    </button>
+                </div>
             </div>
 
         </main>

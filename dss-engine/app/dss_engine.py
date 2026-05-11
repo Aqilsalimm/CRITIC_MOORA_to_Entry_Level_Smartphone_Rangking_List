@@ -9,6 +9,10 @@ def hitung_rekomendasi(df, fokus_kriteria):
     """
     kriteria_cols = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9']
     
+    # Tambahkan kolom Nama_HP jika belum ada (karena di dataset adanya Type)
+    if 'Nama_HP' not in df.columns:
+        df['Nama_HP'] = df['Brand'] + ' ' + df['Type']
+        
     # 1. Encoding untuk kriteria non-numerik (C7, C8, C9) agar bisa dihitung
     mapping_c7 = {'eMMC': 1, 'UFS': 2}
     mapping_c8 = {'TFT': 1, 'IPS': 1, 'Amoled': 2, 'AMOLED': 2}
@@ -127,12 +131,84 @@ def hitung_rekomendasi(df, fokus_kriteria):
         "highest_score": float(df_rank['Nilai_Optimasi_Yi'].max())
     }
 
-    # Kembalikan JSON dengan struktur terpisah agar mudah dibaca Vue
+    # ==========================================
+    # PEMBUATAN DATA UNTUK TAB "PERHITUNGAN"
+    # ==========================================
+    
+    # Kriteria yang aktif / terpilih untuk ditampilkan
+    kriteria_labels = [k for k in fokus_kriteria] if fokus_kriteria else kriteria_cols
+
+    # Step 1: Filter Data
+    step_1 = df[['Nama_HP', 'C1', 'Brand']].rename(columns={'Nama_HP': 'nama', 'C1': 'harga', 'Brand': 'brand'}).to_dict(orient='records')
+
+    # Step 2: Matriks Keputusan Awal
+    matriks_awal = []
+    for i, row in df_numeric.iterrows():
+        matriks_awal.append({
+            "smartphone": row['Nama_HP'],
+            "values": [round(val, 2) for val in row[kriteria_cols].values]
+        })
+    step_2 = {"kriteria": kriteria_cols, "matriks": matriks_awal}
+
+    # Step 3: Normalisasi Matriks
+    matriks_norm = []
+    for i in range(len(df)):
+        matriks_norm.append({
+            "smartphone": df.iloc[i]['Nama_HP'],
+            # Format ke 4 angka di belakang koma (string) agar rapi seperti desain
+            "normalized": [f"{val:.4f}" for val in X_norm_moora[i]]
+        })
+    step_3 = {
+        "formula": "r_ij = x_ij / sqrt(Σ x_ij²)",
+        "sample": matriks_norm
+    }
+
+    # Step 4: Perhitungan Bobot CRITIC
+    std_dev_list = [{"kriteria": k, "stdDev": f"{std_dev[idx]:.4f}"} for idx, k in enumerate(kriteria_cols)]
+    weights_list = [{"kriteria": k, "bobot": f"{W_j[idx]*100:.2f}%"} for idx, k in enumerate(kriteria_cols)]
+    step_4 = {
+        "stdDev": std_dev_list,
+        "weights": weights_list,
+        "formula": "C_j = σ_j × Σ(1 - r_jk)"
+    }
+
+    # Step 5: Perhitungan MOORA
+    moora_scores = []
+    for i in range(len(df)):
+        moora_scores.append({
+            "smartphone": df.iloc[i]['Nama_HP'],
+            "score": f"{Yi[i]:.4f}"
+        })
+    step_5 = {
+        "formula": "Y_i = Σ(max) w_j × r_ij - Σ(min) w_j × r_ij",
+        "scores": moora_scores
+    }
+
+    # Step 6: Ranking Final
+    ranking_final = []
+    for i, row in df_rank.iterrows():
+        ranking_final.append({
+            "rank": i + 1,
+            "smartphone": row['Nama_HP'],
+            "score": f"{row['Nilai_Optimasi_Yi']:.4f}"
+        })
+    step_6 = ranking_final
+
+    # --- UPDATE RETURN JSON ---
+    # Kembalikan JSON dengan struktur 3 pilar: recommendations, analysis, dan calculation
     return {
         "recommendations": hasil_rekomendasi,
         "analysis": {
-            "weights": dict_bobot, # Jika butuh render seluruh bobot C1-C9
-            "selected_weights": selected_weights, # Bobot spesifik pilihan user
+            "weights": dict_bobot,
+            "selected_weights": selected_weights,
             "stats": stats
+        },
+        "calculation": {
+            "step_1": step_1,
+            "step_2": step_2,
+            "step_3": step_3,
+            "step_4": step_4,
+            "step_5": step_5,
+            "step_6": step_6
         }
     }
