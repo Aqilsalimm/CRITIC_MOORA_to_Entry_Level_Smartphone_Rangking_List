@@ -25,7 +25,7 @@ const availableCriteria = [
 
 const form = useForm({
     min_price: 0,
-    max_price: 3000000, // Format Rupiah sesuai permintaan
+    max_price: 4000000, // Format Rupiah sesuai permintaan
     selected_brands: [],
     selected_criteria: []
 });
@@ -85,7 +85,7 @@ const submitForm = () => {
                     </div>
                     <input 
                         type="range" 
-                        min="500000" max="3000000" step="100000"
+                        min="500000" max="4000000" step="100000"
                         v-model="form.max_price"
                         class="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                     >

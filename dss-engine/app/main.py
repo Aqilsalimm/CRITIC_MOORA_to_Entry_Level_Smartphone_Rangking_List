@@ -22,7 +22,7 @@ def rekomendasi_api():
 
     try:
         req_data = request.json
-        max_price = req_data.get('max_price', 3000000)
+        max_price = req_data.get('max_price', 4000000)
         brands = req_data.get('brands', [])
         fokus_kriteria = req_data.get('fokus_kriteria', []) # Array berisi max 3 ID (contoh: ['C1', 'C4'])
 
