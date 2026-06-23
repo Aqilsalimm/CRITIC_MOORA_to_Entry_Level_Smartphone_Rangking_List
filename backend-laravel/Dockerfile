@@ -24,5 +24,9 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Start artisan server
-CMD php artisan serve --host=0.0.0.0 --port=8000
+# Copy and setup entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh && sed -i -e 's/\r$//' /usr/local/bin/docker-entrypoint.sh
+
+# Use entrypoint script
+CMD ["/usr/local/bin/docker-entrypoint.sh"]
